@@ -40,7 +40,7 @@ st.title(texts[lang]["title"])
 # =========================
 @st.cache_data
 def load_data():
-    return pd.read_csv("sample_data.csv")
+    return pd.read_csv("sample_data.csv", sep=r"\s+")
 
 data = load_data()
 data.columns = data.columns.str.strip()
