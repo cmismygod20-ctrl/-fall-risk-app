@@ -1,67 +1,96 @@
-# app.py
 import streamlit as st
 import pandas as pd
-from model import train_model, predict
-
-st.set_page_config(page_title="Fall Risk App", layout="centered")
-
-# =========================
-# 언어 선택 / 语言选择
-# =========================
-lang = st.selectbox("🌐 언어 선택 / 语言选择", ["한국어", "中文"])
+import numpy as np
+from PIL import Image
+from sklearn.linear_model import LogisticRegression
 
 # =========================
-# 제목
+# 🌐 Language system
 # =========================
-if lang == "한국어":
-    st.title("🧠 낙상 위험 예측 시스템")
-    st.write("환자의 정보를 입력하면 낙상 위험을 예측합니다.")
-else:
-    st.title("🧠 跌倒风险预测系统")
-    st.write("输入患者信息，系统将预测跌倒风险。")
+lang = st.selectbox("🌐 Language / 语言选择", ["English", "中文", "한국어"])
+
+texts = {
+    "English": {
+        "title": "Fall Risk Prediction System",
+        "upload": "Upload Image",
+        "predict": "Predict",
+        "result_high": "⚠️ High Fall Risk",
+        "result_low": "✅ Low Fall Risk"
+    },
+    "中文": {
+        "title": "跌倒风险预测系统",
+        "upload": "上传图片",
+        "predict": "预测",
+        "result_high": "⚠️ 高跌倒风险",
+        "result_low": "✅ 低跌倒风险"
+    },
+    "한국어": {
+        "title": "낙상 위험 예측 시스템",
+        "upload": "이미지 업로드",
+        "predict": "예측",
+        "result_high": "⚠️ 높은 낙상 위험",
+        "result_low": "✅ 낮은 낙상 위험"
+    }
+}
+
+st.title(texts[lang]["title"])
 
 # =========================
-# 입력 UI
+# 📊 Load and Train Model
 # =========================
-age = st.slider("Age / 나이", 40, 100, 65)
+@st.cache_data
+def load_data():
+    return pd.read_csv("sample_data.csv")
+
+data = load_data()
+
+X = data[["age", "balance", "gait", "strength", "history"]]
+y = data["risk"]
+
+model = LogisticRegression()
+model.fit(X, y)
+
+# =========================
+# 🎛 User Input
+# =========================
+age = st.slider("Age", 20, 100, 50)
 balance = st.slider("Balance Score", 0, 100, 50)
-gait = st.slider("Gait Speed", 0.1, 2.0, 1.0)
-muscle = st.slider("Muscle Strength", 0, 100, 50)
-history = st.selectbox("Fall History / 낙상 이력", [0, 1])
+gait = st.slider("Gait Speed", 0.0, 2.0, 1.0)
+strength = st.slider("Muscle Strength", 0, 100, 50)
+history = st.selectbox("Fall History", [0, 1, 2, 3])
 
 # =========================
-# 데이터 로드
+# 🖼 Image Upload + Analysis
 # =========================
-data = pd.read_csv("sample_data.csv")
-model = train_model(data)
+uploaded_file = st.file_uploader(texts[lang]["upload"], type=["jpg", "png"])
 
-# =========================
-# 예측 버튼
-# =========================
-if st.button("🔍 예측 / 预测"):
+image_factor = 0
 
-    result, prob = predict(model, {
-        "age": age,
-        "balance_score": balance,
-        "gait_speed": gait,
-        "muscle_strength": muscle,
-        "history_falls": history
-    })
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # 결과 출력
-    if lang == "한국어":
-        if result == 1:
-            st.error(f"⚠️ 고위험 (확률: {prob:.2f})")
-        else:
-            st.success(f"✅ 저위험 (확률: {1-prob:.2f})")
+    # 简单“图像分析”（亮度影响风险）
+    img_array = np.array(image)
+    brightness = img_array.mean()
+
+    if brightness < 100:
+        image_factor = 1  # 增加风险
     else:
-        if result == 1:
-            st.error(f"⚠️ 高风险 (概率: {prob:.2f})")
-        else:
-            st.success(f"✅ 低风险 (概率: {1-prob:.2f})")
+        image_factor = 0
 
-    # 설명
-    if lang == "한국어":
-        st.info("이 결과는 머신러닝 모델을 기반으로 한 예측입니다.")
+# =========================
+# 🔮 Prediction
+# =========================
+if st.button(texts[lang]["predict"]):
+    input_data = np.array([[age, balance, gait, strength, history]])
+
+    prediction = model.predict(input_data)[0]
+
+    # 融合图片分析结果
+    prediction = max(prediction, image_factor)
+
+    if prediction == 1:
+        st.error(texts[lang]["result_high"])
     else:
-        st.info("该结果基于机器学习模型预测，仅供参考。")
+        st.success(texts[lang]["result_low"])
