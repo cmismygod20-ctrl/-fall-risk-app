@@ -43,7 +43,7 @@ def load_data():
     return pd.read_csv("sample_data.csv")
 
 data = load_data()
-
+data.columns = data.columns.str.strip()
 X = data[["age", "balance", "gait", "strength", "history"]]
 y = data["risk"]
 
